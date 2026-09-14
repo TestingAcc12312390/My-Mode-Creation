@@ -1,0 +1,315 @@
+--//========================================================
+--// SPRINT BAR
+--// PC: Hold A
+--// MOBILE: Tap button to toggle
+--//========================================================
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+
+local Player = Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+
+--// SETTINGS
+local MAX_STAMINA = 100
+local STAMINA_DRAIN = 18
+local STAMINA_REGEN = 12
+
+local WALK_SPEED = 16
+local SPRINT_SPEED = 20
+
+local NORMAL_COLOR = Color3.fromRGB(75, 220, 90)
+local TIRED_COLOR = Color3.fromRGB(255, 50, 50)
+
+local EXHAUSTED = false
+local SPRINTING = false
+local stamina = MAX_STAMINA
+
+--//========================================================
+--// GUI
+--//========================================================
+
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SprintGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+--// SPRINT BAR
+local BarBackground = Instance.new("Frame")
+BarBackground.Name = "SprintBar"
+BarBackground.Size = UDim2.new(0, 160, 0, 10)
+BarBackground.Position = UDim2.new(1, -25, 1, -20)
+BarBackground.AnchorPoint = Vector2.new(1, 1)
+BarBackground.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+BarBackground.BackgroundTransparency = 0.25
+BarBackground.BorderSizePixel = 0
+BarBackground.Parent = ScreenGui
+
+local BarCorner = Instance.new("UICorner")
+BarCorner.CornerRadius = UDim.new(1, 0)
+BarCorner.Parent = BarBackground
+
+local BarStroke = Instance.new("UIStroke")
+BarStroke.Thickness = 1.5
+BarStroke.Transparency = 0.35
+BarStroke.Parent = BarBackground
+
+--// BAR FILL
+local BarFill = Instance.new("Frame")
+BarFill.Name = "Fill"
+BarFill.Size = UDim2.new(1, 0, 1, 0)
+BarFill.BackgroundColor3 = NORMAL_COLOR
+BarFill.BorderSizePixel = 0
+BarFill.Parent = BarBackground
+
+local FillCorner = Instance.new("UICorner")
+FillCorner.CornerRadius = UDim.new(1, 0)
+FillCorner.Parent = BarFill
+
+--//========================================================
+--// MOBILE SPRINT BUTTON
+--//========================================================
+
+local SprintButton = Instance.new("ImageButton")
+SprintButton.Name = "SprintButton"
+
+-- Bigger button
+SprintButton.Size = UDim2.new(0, 75, 0, 75)
+
+-- Moved higher
+SprintButton.Position = UDim2.new(0.95, 0, 0.57, 0)
+
+SprintButton.AnchorPoint = Vector2.new(1, 0.5)
+SprintButton.BackgroundTransparency = 1
+SprintButton.Image = "rbxassetid://90403919083015"
+SprintButton.ScaleType = Enum.ScaleType.Fit
+SprintButton.Visible = UserInputService.TouchEnabled
+SprintButton.Parent = ScreenGui
+
+--//========================================================
+--// EXHAUSTION BLUR
+--//========================================================
+
+local Blur = Lighting:FindFirstChild("SprintExhaustionBlur")
+
+if not Blur then
+	Blur = Instance.new("BlurEffect")
+	Blur.Name = "SprintExhaustionBlur"
+	Blur.Size = 0
+	Blur.Parent = Lighting
+end
+
+--//========================================================
+--// TIRED SOUND
+--//========================================================
+
+local TiredSound = Instance.new("Sound")
+TiredSound.Name = "TiredSound"
+TiredSound.SoundId = "rbxassetid://77719769268618"
+TiredSound.Volume = 1
+TiredSound.Parent = Character
+
+--//========================================================
+--// EXHAUSTION
+--//========================================================
+
+local function becomeExhausted()
+
+	if EXHAUSTED then
+		return
+	end
+
+	EXHAUSTED = true
+	SPRINTING = false
+	Humanoid.WalkSpeed = WALK_SPEED
+
+	-- Bar turns RED
+	TweenService:Create(
+		BarFill,
+		TweenInfo.new(0.2),
+		{BackgroundColor3 = TIRED_COLOR}
+	):Play()
+
+	-- Strong blur
+	TweenService:Create(
+		Blur,
+		TweenInfo.new(0.35),
+		{Size = 28}
+	):Play()
+
+	-- Caption
+	pcall(function()
+		require(
+			Player.PlayerGui.MainUI.Initiator.Main_Game
+		).caption("You're Exhausted.", true)
+	end)
+
+	TiredSound:Play()
+
+	-- Wait for sound
+	if TiredSound.TimeLength > 0 then
+		task.wait(TiredSound.TimeLength)
+	else
+		TiredSound.Ended:Wait()
+	end
+
+	-- Remove blur
+	TweenService:Create(
+		Blur,
+		TweenInfo.new(0.5),
+		{Size = 0}
+	):Play()
+
+	task.wait(0.5)
+
+	-- Bar returns GREEN
+	TweenService:Create(
+		BarFill,
+		TweenInfo.new(0.3),
+		{BackgroundColor3 = NORMAL_COLOR}
+	):Play()
+
+	EXHAUSTED = false
+end
+
+--//========================================================
+--// START SPRINT
+--//========================================================
+
+local function startSprint()
+
+	if EXHAUSTED then
+		return
+	end
+
+	if stamina <= 0 then
+		return
+	end
+
+	SPRINTING = true
+	Humanoid.WalkSpeed = SPRINT_SPEED
+end
+
+--//========================================================
+--// STOP SPRINT
+--//========================================================
+
+local function stopSprint()
+
+	SPRINTING = false
+
+	if Humanoid then
+		Humanoid.WalkSpeed = WALK_SPEED
+	end
+end
+
+--//========================================================
+--// PC - HOLD A
+--//========================================================
+
+UserInputService.InputBegan:Connect(function(input, processed)
+
+	if processed then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.A then
+		startSprint()
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+
+	if input.KeyCode == Enum.KeyCode.A then
+		stopSprint()
+	end
+end)
+
+--//========================================================
+--// MOBILE - TOGGLE
+--//========================================================
+
+SprintButton.MouseButton1Click:Connect(function()
+
+	if EXHAUSTED then
+		return
+	end
+
+	if SPRINTING then
+		stopSprint()
+	else
+		startSprint()
+	end
+end)
+
+--//========================================================
+--// STAMINA LOOP
+--//========================================================
+
+task.spawn(function()
+
+	while true do
+
+		task.wait(0.05)
+
+		-- Drain while sprinting
+		if SPRINTING and not EXHAUSTED then
+
+			stamina -= STAMINA_DRAIN * 0.05
+
+			if stamina <= 0 then
+
+				stamina = 0
+				stopSprint()
+
+				task.spawn(becomeExhausted)
+			end
+
+		-- Refill even while exhausted
+		else
+
+			stamina += STAMINA_REGEN * 0.05
+
+			if stamina > MAX_STAMINA then
+				stamina = MAX_STAMINA
+			end
+		end
+
+		-- Update bar
+		local percent = stamina / MAX_STAMINA
+
+		TweenService:Create(
+			BarFill,
+			TweenInfo.new(0.08, Enum.EasingStyle.Linear),
+			{
+				Size = UDim2.new(percent, 0, 1, 0)
+			}
+		):Play()
+	end
+end)
+
+--//========================================================
+--// RESPAWN SUPPORT
+--//========================================================
+
+Player.CharacterAdded:Connect(function(newCharacter)
+
+	Character = newCharacter
+	Humanoid = Character:WaitForChild("Humanoid")
+
+	TiredSound.Parent = Character
+
+	Humanoid.WalkSpeed = WALK_SPEED
+
+	stamina = MAX_STAMINA
+	SPRINTING = false
+	EXHAUSTED = false
+
+	Blur.Size = 0
+	BarFill.BackgroundColor3 = NORMAL_COLOR
+end)
